@@ -1,41 +1,8 @@
 # ARSA Variant Pathogenicity Predictor
 
-A two-part machine learning project connecting genetic mutations to a rare childhood disease, with predictions submitted to the **CAGI 7 international blind challenge**.
+A machine learning model that predicts whether a genetic mutation in the **ARSA gene** is likely to cause **Metachromatic Leukodystrophy (MLD)** — a rare, fatal childhood disease. The model is trained on 13,000+ clinically classified variants from across the human genome, learns to output a probability of pathogenicity, and then converts that to a protein stability score (`1 − P(pathogenic)`) which was submitted to the **CAGI 7 international blind challenge** to be scored against real lab measurements the model never saw.
 
 **Self-test AUC: 0.953 &nbsp;|&nbsp; 2,491 ARSA variants predicted &nbsp;|&nbsp; Berkeley C146 · Spring 2026**
-
----
-
-## How the Project Works
-
-This project has two sequential tasks:
-
-```
-TASK 1 — Train a pathogenicity classifier
-─────────────────────────────────────────────────────────────────
- Input:  13,464 human genetic variants from ClinVar (many genes)
-         each scored by 17 existing computational tools
- Label:  clinically classified as Pathogenic or Benign
- Model:  Random Forest meta-predictor
- Output: P(pathogenic) — probability a variant causes disease
- Eval:   Held-out self-test set → AUC 0.953, PR-AUC 0.806
-
-         ↓  apply trained model to ARSA-specific variants
-
-TASK 2 — Submit ARSA stability predictions to CAGI 7
-─────────────────────────────────────────────────────────────────
- Input:  2,491 possible mutations in the ARSA gene
- Output: stability_score = 1 − P(pathogenic)
-         (higher score = more stable protein = more benign)
- Eval:   Scored by CAGI 7 against real lab stability measurements
-         the model never saw (Kendall's τ rank correlation)
-```
-
-**Why does `1 − P(pathogenic)` approximate stability?**  
-Unstable proteins are preferentially degraded by the cell — so destabilization and pathogenicity are correlated. The conversion is an approximation: some variants are pathogenic *without* destabilizing the protein (e.g. they disrupt catalysis while still folding correctly). Those will be systematically mis-ranked, and that's a known limitation of this approach.
-
-**Why does this matter?**  
-ARSA produces an enzyme that breaks down fatty deposits in the brain. When ARSA is broken, those deposits accumulate and destroy the myelin sheath, causing **Metachromatic Leukodystrophy (MLD)** — a rare, fatal disease in young children. A gene therapy (Lenmeldy, ~$4.25M/patient) can prevent the disease, but *only before symptoms appear*. Accurate variant prediction is what makes early intervention possible.
 
 ---
 
