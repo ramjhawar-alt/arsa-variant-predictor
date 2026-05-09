@@ -1,14 +1,41 @@
 # ARSA Variant Pathogenicity Predictor
 
-A machine learning model that predicts whether a genetic mutation in the **ARSA gene** is likely to cause **Metachromatic Leukodystrophy (MLD)** — a rare, fatal childhood disease. Predictions were submitted to the **CAGI 7 international blind challenge**, where they'll be scored against held-back lab measurements.
+A two-part machine learning project connecting genetic mutations to a rare childhood disease, with predictions submitted to the **CAGI 7 international blind challenge**.
 
-**Self-test AUC: 0.953** | **2,491 ARSA variants predicted** | **Berkeley C146 · Spring 2026**
+**Self-test AUC: 0.953 &nbsp;|&nbsp; 2,491 ARSA variants predicted &nbsp;|&nbsp; Berkeley C146 · Spring 2026**
 
 ---
 
-## The Problem in One Sentence
+## How the Project Works
 
-Out of thousands of possible single-letter mutations in the ARSA gene, which ones break the protein badly enough to cause disease? We trained a Random Forest on 13,000+ clinically classified variants from other genes, then applied it to ARSA.
+This project has two sequential tasks:
+
+```
+TASK 1 — Train a pathogenicity classifier
+─────────────────────────────────────────────────────────────────
+ Input:  13,464 human genetic variants from ClinVar (many genes)
+         each scored by 17 existing computational tools
+ Label:  clinically classified as Pathogenic or Benign
+ Model:  Random Forest meta-predictor
+ Output: P(pathogenic) — probability a variant causes disease
+ Eval:   Held-out self-test set → AUC 0.953, PR-AUC 0.806
+
+         ↓  apply trained model to ARSA-specific variants
+
+TASK 2 — Submit ARSA stability predictions to CAGI 7
+─────────────────────────────────────────────────────────────────
+ Input:  2,491 possible mutations in the ARSA gene
+ Output: stability_score = 1 − P(pathogenic)
+         (higher score = more stable protein = more benign)
+ Eval:   Scored by CAGI 7 against real lab stability measurements
+         the model never saw (Kendall's τ rank correlation)
+```
+
+**Why does `1 − P(pathogenic)` approximate stability?**  
+Unstable proteins are preferentially degraded by the cell — so destabilization and pathogenicity are correlated. The conversion is an approximation: some variants are pathogenic *without* destabilizing the protein (e.g. they disrupt catalysis while still folding correctly). Those will be systematically mis-ranked, and that's a known limitation of this approach.
+
+**Why does this matter?**  
+ARSA produces an enzyme that breaks down fatty deposits in the brain. When ARSA is broken, those deposits accumulate and destroy the myelin sheath, causing **Metachromatic Leukodystrophy (MLD)** — a rare, fatal disease in young children. A gene therapy (Lenmeldy, ~$4.25M/patient) can prevent the disease, but *only before symptoms appear*. Accurate variant prediction is what makes early intervention possible.
 
 ---
 
@@ -16,50 +43,35 @@ Out of thousands of possible single-letter mutations in the ARSA gene, which one
 
 | | |
 |--|--|
-| [`notebooks/analysis.ipynb`](notebooks/analysis.ipynb) | Full pipeline — EDA, model training, evaluation, predictions |
-| [`results/stability_predictions.tsv`](results/stability_predictions.tsv) | The actual CAGI 7 submission (2,491 variants) |
-| [`data/`](data/README.md) | All input data with column descriptions |
+| [`notebooks/analysis.ipynb`](notebooks/analysis.ipynb) | Full pipeline — EDA → classifier training → ARSA predictions |
+| [`results/stability_predictions.tsv`](results/stability_predictions.tsv) | CAGI 7 submission: 2,491 ARSA variants with stability scores |
+| [`data/`](data/README.md) | All input datasets with column descriptions |
 
 ---
 
-## How It Works
-
-1. **17 pre-computed scores** per variant (CADD, AlphaMissense, SIFT, PolyPhen-2, ESM-1b, etc.) are used as features — no raw biology needed, just the numbers.
-2. A **Random Forest** learns to combine them, trained on 13,464 ClinVar variants (9:1 benign:pathogenic).
-3. Preprocessing (imputation, missingness flags) runs **inside cross-validation** to prevent data leakage.
-4. The model outputs `P(pathogenic)`; we submit `1 − P(pathogenic)` as a stability score (higher = more stable = more benign).
-
----
-
-## Results
+## Task 1 Results — Pathogenicity Classifier
 
 <img src="figures/roc_pr_curves.png" width="680"/>
 
 | Model | AUC | PR-AUC |
 |---|---|---|
 | **Random Forest (ours)** | **0.953** | **0.806** |
-| CADD (best single predictor) | 0.954 | 0.853 |
+| CADD (best single tool) | 0.954 | 0.853 |
 | AlphaMissense | 0.939 | 0.656 |
 
-The meta-predictor nearly matches the best individual tool on AUC and substantially beats it on PR-AUC — the more meaningful metric when only 9.8% of variants are pathogenic.
-
-**Generalization:** Training CV AUC was 0.992 vs. self-test 0.953 — the gap comes from component predictors (CADD, AlphaMissense) being trained on ClinVar themselves, creating circular signal.
-
----
-
-## Feature Importances
+The meta-predictor combines 17 tools via Random Forest (GridSearchCV, 5-fold stratified CV). Training CV AUC was 0.992 — the gap to 0.953 on self-test reflects circular training: several component tools were themselves trained on ClinVar, inflating CV scores.
 
 <img src="figures/feature_importances.png" width="560"/>
 
-AlphaMissense and CADD dominate. Conservation scores (phastCons, phyloP) add little once variant-level predictors are present — confirmed by three independent selection methods: permutation importance, RFECV, and L1 regularization.
+AlphaMissense and CADD dominate. Conservation scores (phastCons, phyloP) add little once variant-level predictors are present.
 
 ---
 
-## ARSA Predictions
+## Task 2 Results — ARSA Stability Predictions
 
 <img src="figures/arsa_predictions_histogram.png" width="560"/>
 
-~55% of variants fall below the severe MLD clinical threshold (stability < 0.572). The scatter below shows predicted vs. experimental stability on the 344 labeled ARSA variants used to sanity-check orientation.
+2,491 ARSA variants predicted. ~55% fall below the severe MLD clinical threshold (stability < 0.572). The figure below plots predicted vs. experimental stability on the 344 labeled ARSA variants used for orientation checks — points in the lower-right are stable proteins the model incorrectly flags as pathogenic (the known failure mode of the 1−P mapping).
 
 <img src="figures/creative_figure.png" width="580"/>
 
@@ -74,13 +86,7 @@ pip install -r requirements.txt
 jupyter notebook notebooks/analysis.ipynb
 ```
 
-Full pipeline takes ~15 minutes (grid searches). To validate the submission:
-
-```bash
-python src/validate_submission.py \
-  results/stability_predictions.tsv \
-  data/arsa_submission_template.tsv
-```
+Full pipeline takes ~15 minutes (grid searches).
 
 ---
 
