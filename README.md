@@ -18,7 +18,6 @@ Out of thousands of possible single-letter mutations in the ARSA gene, which one
 |--|--|
 | [`notebooks/analysis.ipynb`](notebooks/analysis.ipynb) | Full pipeline — EDA, model training, evaluation, predictions |
 | [`results/stability_predictions.tsv`](results/stability_predictions.tsv) | The actual CAGI 7 submission (2,491 variants) |
-| [`src/validate_submission.py`](src/validate_submission.py) | Format validator for the submission file |
 | [`data/`](data/README.md) | All input data with column descriptions |
 
 ---
